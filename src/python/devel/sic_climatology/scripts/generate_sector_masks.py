@@ -2,8 +2,35 @@ import cdms2
 import MV2 as MV
 import string
 import os,sys
-
 from pcmdi_metrics.pcmdi.pmp_parser import *
+import pcmdi_metrics
+import parser
+import collections
+from sector_mask_defs import *
+
+import argparse
+from argparse import RawTextHelpFormatter
+
+P = PMPParser()
+
+P.add_argument("--mp", "--modpath",
+                      type = str,
+                      dest = 'modpath',
+                      default = '',
+                      help = "Explicit path to model monthly PR climatology")
+P.add_argument("-o", "--obspath",
+                      type = str,
+                      dest = 'obspath',
+                      default = '',
+                      help = "Explicit path to obs monthly PR climatology")
+P.add_argument("--outpd", "--outpathdata",
+                      type = str, 
+                      dest = 'outpathdata',
+                      default = '/export/gleckler1/processing/metrics_package/my_test/sea_ice/git_data/',
+                      help = "Output path for sector scale masks")
+
+args = P.parse_args(sys.argv[1:])
+sec_mask_dir = args.outpathdata
 
 #Factors
 factor1=1.e-6   #model units are m^2, converting to km^2
@@ -133,85 +160,21 @@ for mod in mods:
    mask_io=MV.zeros(area.shape)
 
 ###############################################################
-#Arctic Regions
-#Central Arctic
-   lat_bound1=MV.logical_and(MV.greater(lats,80.),MV.less_equal(lats,90.))
-   lat_bound2=MV.logical_and(MV.greater(lats,65.),MV.less_equal(lats,90.))
-   lon_bound1=MV.logical_and(MV.greater(lons_a,-120.),MV.less_equal(lons_a,90.))
-   lon_bound2=MV.logical_and(MV.greater(lons_p,90.),MV.less_equal(lons_p,240.))
-   reg1_ca=MV.logical_and(lat_bound1,lon_bound1)
-   reg2_ca=MV.logical_and(lat_bound2,lon_bound2)
-   mask_ca=MV.where(MV.logical_or(reg1_ca,reg2_ca),1,0)
-   mask_ca=MV.where(MV.equal(land_mask,0),0,mask_ca)           # 0 - Land
 
-   g = cdms2.open('data/mask_' + mod + '_ca.nc','w+')
-   mask_ca.id = 'mask'
-   g.write(mask_ca)
+   sectors = ['ca','na','np','sp','sa','io'] 
+
+   for sector in sectors: 
+     mask = getmask(sector,lats,lons,lons_a,lons_p,land_mask)
+
+     g = cdms2.open(sec_mask_dir + 'mask_' + mod + '_' + sector + '.nc','w+')
+     mask.id = 'mask'
+     g.write(mask)
 #  land_mask.id = 'sftof'
 #  g.write(land_mask)
-   g.close()
+     g.close()
 
-#NA region
-   lat_bound=MV.logical_and(MV.greater(lats,45.),MV.less_equal(lats,80.))
-   lon_bound=MV.logical_and(MV.greater(lons_a,-120.),MV.less_equal(lons_a,90.))
-   lat_bound3=MV.logical_and(MV.greater(lats,45.),MV.less_equal(lats,50.))
-   lon_bound3=MV.logical_and(MV.greater(lons_a,30.),MV.less_equal(lons_a,60.))
-   reg3=MV.logical_and(lat_bound3,lon_bound3)
-
-   mask_na=MV.where(MV.logical_and(lat_bound,lon_bound),1,0)
-   mask_na=MV.where(MV.equal(reg3,True),0,mask_na)   # Masking out the Black and Caspian Seas
-   mask_na=MV.where(MV.equal(land_mask,True),0,mask_na)           # 0 - Land
-   mask_na=MV.where(MV.equal(land_mask,0),0,mask_na)           # 0 - Land
-
-   g = cdms2.open('data/mask_' + mod + '_na.nc','w+')
-   mask_na.id = 'mask'
-   g.write(mask_na)
-   g.close()
-   
-#NP region
-   lat_bound=MV.logical_and(MV.greater(lats,45.),MV.less_equal(lats,65.))
-   lon_bound=MV.logical_and(MV.greater(lons_p,90.),MV.less_equal(lons_p,240.))
-   mask_np=MV.where(MV.logical_and(lat_bound,lon_bound),1,0)
-   mask_np=MV.where(MV.equal(land_mask,0),0,mask_np)           # 0 - Land
-
-   g = cdms2.open('data/mask_' + mod + '_np.nc','w+')
-   mask_np.id = 'mask'
-   g.write(mask_np)
-   g.close()
-
-
-#Antarctic Regions
-   lat_bound=MV.logical_and(MV.greater(lats,-90.),MV.less_equal(lats,-55.))
-
-#SA region
-   lon_bound=MV.logical_and(MV.greater(lons_a,-60.),MV.less_equal(lons_a,20.))
-   mask_sa=MV.where(MV.logical_and(lat_bound,lon_bound),1,0)
-   mask_sa=MV.where(MV.equal(land_mask,0),0,mask_sa)           # 0 - Land
-
-   g = cdms2.open('data/mask_' + mod + '_sa.nc','w+')
-   mask_sa.id = 'mask'
-   g.write(mask_sa)
-   g.close()
-
-#SP region
-   lon_bound=MV.logical_and(MV.greater(lons_p,90.),MV.less_equal(lons_p,300.))
-   mask_sp=MV.where(MV.logical_and(lat_bound,lon_bound),1,0)
-   mask_sp=MV.where(MV.equal(land_mask,0),0,mask_sp)           # 0 - Land
-
-   g = cdms2.open('data/mask_' + mod + '_sp.nc','w+')
-   mask_sp.id = 'mask'
-   g.write(mask_sp)
-   g.close()
-
-#IO region
-   lon_bound=MV.logical_and(MV.greater(lons_p,20.),MV.less_equal(lons_p,90.))
-   mask_io=MV.where(MV.logical_and(lat_bound,lon_bound),1,0)
-   mask_io=MV.where(MV.equal(land_mask,0),0,mask_io)           # 0 - Land
-
-   g = cdms2.open('data/mask_' + mod + '_io.nc','w+')
-   mask_io.id = 'mask'
-   g.write(mask_io)
-   g.close()
+   print 'got it!',' ', mask.shape
+   w = sys.stdin.readline()
 
 # Calculate the Total Sea Ice Concentration/Extent/Area
 #       ice_area = MV.multiply(sic,1)                                #SIC
