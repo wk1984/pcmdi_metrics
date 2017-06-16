@@ -36,7 +36,7 @@ period = '000101-010012'
 realization = "r1i1p1"  # mandatory
 
 # SAVE INTERPOLATED MODEL CLIMATOLOGIES ?
-save_test_clims = False
+save_test_clims = True
 
 # DATA LOCATION: MODELS, OBS AND METRICS OUTPUT
 
